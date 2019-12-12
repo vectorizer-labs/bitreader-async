@@ -1,11 +1,18 @@
 [package]
 name = "bitreader"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ethan Spurlock <ethan@spurlock.io>"]
 edition = "2018"
 
-[dependencies]
+[dependencies.failure]
+version = "0.1.6"
+
+[dependencies.failure_derive]
+version = "0.1.6"
 
 [dependencies.async-std]
 version = "1.2.0"
 features = ["attributes"]
+
+[dependencies.async-trait]
+version = "0.1.21"

@@ -1,30 +1,25 @@
-use async_std::io::Read;
+#[macro_use] extern crate failure_derive;
+
+use async_std::io::{BufReader, Read};
+use async_std::prelude::*;
+
+use bitqueue::BitQueue;
+use byte_reader::ReadFromBigEndian;
+use error::Result;
 
 /// BitReader reads data from a byte slice at the granularity of a single bit.
-pub struct BitReader<R : Read + std::marker::Unpin> {
+pub struct BitReader<R : Read + std::marker::Unpin + std::marker::Send> {
     reader : BufReader<R>,
     buffer : BitQueue
 }
 
-use std::result;
-
 mod bitqueue;
-use bitqueue::BitQueue;
-
 mod truncate;
-
-use async_std::io::{BufReader};
-
 mod byte_reader;
-use byte_reader::ReadFromBigEndian;
 
 pub mod error;
-use error::BitReaderError;
 
-/// Result type for those BitReader operations that can fail.
-pub type Result<T> = result::Result<T, BitReaderError>;
-
-impl<R : Read + std::marker::Unpin> BitReader<R>
+impl<R : Read + std::marker::Unpin + std::marker::Send> BitReader<R>
 {
     pub fn new(reader : R) -> BitReader<R>
     {
@@ -37,25 +32,42 @@ impl<R : Read + std::marker::Unpin> BitReader<R>
 
     pub fn is_aligned(&self) -> bool { self.buffer.is_empty() }
 
+    pub async fn read_u8_slice_aligned(&mut self, count : usize) -> Result<Vec<u8>>
+    {
+        let mut result : Vec<u8> = Vec::with_capacity(count);
+        self.reader.read_exact(result.as_mut_slice()).await?;
+
+        Ok(result)
+    }
+
     //should be aligned before this is called
     //Reads a T from the Bitreader and increments position accordingly
-    pub fn read_aligned_be<T : ReadFromBigEndian>(&mut self) -> Result<T>
+    pub async fn read_aligned_be<T>(&mut self) -> Result<T>
+    where T : Sized + ReadFromBigEndian + std::marker::Unpin + std::marker::Send
     {
         //check if its aligned to the byte mark
         assert!(self.buffer.is_empty());
-        Ok(<T>::read_be(&mut self.reader))
+        Ok(<T>::read_be(&mut self.reader).await?)
     }
 
-    pub fn read_bits<T>(&mut self, count: usize) -> Result<T> 
-    where T : Sized + 
+    pub async fn read_bits<T>(&mut self, count: usize) -> Result<T> 
+    where T : Sized + std::fmt::Binary +
               std::ops::Shl<usize, Output=T> + 
               std::ops::Shr<usize, Output=T> + ,
-          usize: truncate::TruncateTo<T>
+          u128: truncate::TruncateTo<T>
     {
         if self.buffer.len() < count
         {
+
+            let mut buf : [u8; 1] = [0;1];
+
+            self.reader.read_exact(&mut buf).await?;
+            println!("Result : {:#?}", buf.len());
+
+            let new_bytes : u8 = u8::from_ne_bytes(buf);
+
             //we need to refil the buffer
-            
+            self.buffer.push(new_bytes);
         }
 
         Ok(self.buffer.pop::<T>(count))

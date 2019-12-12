@@ -34,6 +34,11 @@ impl_trunc_widen!(usize > u32);
 impl_trunc_widen!(usize > u16);
 impl_trunc_widen!(usize > u8);
 
+impl_trunc_widen!(u128 > u32);
+impl_trunc_widen!(u128 > u16);
+impl_trunc_widen!(u128 > u8);
+impl_trunc_widen!(u128 > usize);
+
 
 impl_trunc_widen!(i16 > i8);
 impl_trunc_widen!(i32 > i8);

@@ -1,22 +1,28 @@
 use async_std::io::{Read, BufReader};
 use async_std::prelude::*;
 use std::mem;
+use async_trait::async_trait;
+use super::error::Result;
 
+
+//TODO: make this async so its actually fast lmao
+#[async_trait]
 pub trait ReadFromBigEndian : Sized
 {
     //make sure that input is the same size as self before calling
-    fn read_be<R : Read + std::marker::Unpin>(reader: &mut BufReader<R>) -> Self;
+    async fn read_be<R : Read + std::marker::Unpin + std::marker::Send>(reader: &mut BufReader<R>) -> Result<Self>;
 }
 
 macro_rules! be_impl {
     ($ty: ty, $size: tt) => {
+        #[async_trait]
         impl ReadFromBigEndian for $ty {
             #[inline]
-            fn read_be<R : Read + std::marker::Unpin>(reader: &mut BufReader<R>) -> Self
+            async fn read_be<R : Read + std::marker::Unpin + std::marker::Send>(reader: &mut BufReader<R>) -> Result<Self>
             {
                 let mut int_bytes = [0u8; $size];
-                reader.read_exact(&mut int_bytes);
-                <$ty>::from_be_bytes(int_bytes)
+                let _result = reader.read_exact(&mut int_bytes).await?;
+                Ok(<$ty>::from_be_bytes(int_bytes))
             }
         }
     }
