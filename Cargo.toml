@@ -1,5 +1,5 @@
 [package]
-name = "bitreader"
+name = "bitreader_async"
 version = "0.1.1"
 authors = ["Ethan Spurlock <ethan@spurlock.io>"]
 edition = "2018"
