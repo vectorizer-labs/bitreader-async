@@ -6,7 +6,7 @@ edition = "2018"
 description = "A reader that extends BufReader to allow per bit reads asynchronously"
 license = "MIT"
 keywords = ["Read","bit"]
-repository = "https://github.com/vectorizer-labs/packattack-derive"
+repository = "https://github.com/vectorizer-labs/bitreader-async"
 
 [dependencies.failure]
 version = "0.1.6"
