@@ -62,17 +62,20 @@ impl BitQueue
 
         let trailing_0s = (size_of::<T>() * 8) - count;
 
-        //trim the bits we weren't supposed to read
-        result = result << trailing_0s;
 
-        //shif back
-        result = result >> trailing_0s;
+        //trim the bits we weren't supposed to read
+        result = result >> count;
+
+        //shift back
+        //result = result << trailing_0s;
 
         //erase count bits from the queue
-        self.inner = self.inner << count;
+        self.inner = self.inner >> count;
 
         //adjust the bit_count
         self.bit_count -= count;
+
+        println!("Result : {:#b}", result);
 
         return result;
     }
