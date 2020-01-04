@@ -1,20 +1,18 @@
 use std::mem::size_of;
-use super::truncate::TruncateTo;
 
 pub struct BitQueue
 {
-    inner : u128,
+    inner : u8,
     bit_count: usize
 }
 
 impl BitQueue
 {
-    //Intuition
+    //Intuition: Broken at the moment and only uses u8
     //The max size poppable from the Bitqueue is the next lowest size
     //For Example, if the inner queue is a u64 the max size of T is u32
     //if bit_count >= 32 then it just pops the first 32 bits inside
     //if the bitcount < 32 then we can add 32 bits and then try to pop again
-
     pub fn new() -> BitQueue
     {
         BitQueue
@@ -22,7 +20,6 @@ impl BitQueue
             inner : 0,
             bit_count : 0
         }
-
     }
 
     //You should be certain that there is no useful data
@@ -31,53 +28,39 @@ impl BitQueue
     //for bits so copy out any useful bits before calling push
     pub fn push(&mut self, byte : u8)
     {
-        let bit_length = size_of::<u8>() * 8;
+        assert_eq!(self.inner, 0);
 
-        //panics if you try to add more bits than the queue can hold
-        assert!(self.bit_count + bit_length <= size_of::<u128>() * 8);
+        self.inner = byte;
 
-        let mut new_bytes : u128 = byte as u128;
+        self.bit_count += 8;
 
-        //shift the new bytes by the current bitcount 
-        new_bytes = new_bytes << self.bit_count;
-
-        //add the bits to the buffer
-        self.inner = self.inner | new_bytes;
-
-        self.bit_count += bit_length;
     }
 
-    //TODO: implement a result so we can refill the buffer if we need morre bits than are availible
+    //TODO: implement a result so we can refill the buffer if we need more bits than are availible
     //Right now we assume type usize is larger than type T
     //We also assume that popped types don't cross byte boundaries
-    pub fn pop<T>(&mut self, count : usize) -> T
-    where T : Sized + std::fmt::Binary +
-              std::ops::Shl<usize, Output=T> + 
-              std::ops::Shr<usize, Output=T>,
-          u128: TruncateTo<T>
+    pub fn pop(&mut self, count : usize) -> u8
     {
-        assert!(self.bit_count >= count);
+        let mut result = self.inner.clone();
 
-        let mut result : T = TruncateTo::<T>::truncate(&self.inner);
+        let trailing_0s = self.bit_count - count;
 
-        let trailing_0s = (size_of::<T>() * 8) - count;
+        result = result >> trailing_0s;
 
-
-        //trim the bits we weren't supposed to read
-        result = result >> count;
-
-        //shift back
-        //result = result << trailing_0s;
-
-        //erase count bits from the queue
-        self.inner = self.inner >> count;
-
-        //adjust the bit_count
+        //if there's at least two bits then we can shift to set to 0
+        if self.bit_count > 1
+        {
+            self.inner = self.inner << count + (size_of::<u8>() * 8 - self.bit_count);
+            self.inner = self.inner >> count + (size_of::<u8>() * 8 - self.bit_count);
+        }
+        //otherwise we have to clear by setting to 0
+        else
+        {
+            self.inner = 0;
+        }
         self.bit_count -= count;
 
-        println!("Result : {:#b}", result);
-
-        return result;
+        return result as u8;
     }
 
     pub fn is_empty(&self) -> bool
@@ -97,49 +80,28 @@ mod tests
     use super::*;
 
     #[test]
-    fn basic_push() 
-    {
-        let mut queue = BitQueue::new();
-        
-        //manually insert a byte
-        queue.bit_count = 8;
-        queue.inner = 25u128;
-
-        queue.push(25u8);
-
-        let value : u128 = 0b1100100011001;
-
-        assert_eq!(queue.bit_count, 16);
-        assert_eq!(queue.inner, value);
-    }
-
-    #[test]
     fn basic_pop()
     {
         let mut queue = BitQueue::new();
 
-        //manually insert a byte
-        queue.bit_count = 8;
-        queue.inner = 25u128;
+        queue.push(0b11001110);
 
-        assert_eq!(queue.pop::<u8>(8), 25u8);
+        //println!("pop : {:#b}",queue.pop(4));
+        assert_eq!(0b1100, queue.pop(4));  
+        assert_eq!(0b1110, queue.inner, "{:#b} != {:#b}",0b1110, queue.inner,);
+    }
 
-        //manually insert a byte
-        queue.bit_count = 8;
-        queue.inner = 25u128;
+    #[test]
+    fn advanced_pop()
+    {
+        let mut queue = BitQueue::new();
 
-        assert_eq!(queue.pop::<u16>(8), 25u16);
+        queue.push(0b00010000);
 
-        //manually insert a byte
-        queue.bit_count = 8;
-        queue.inner = 25u128;
-
-        assert_eq!(queue.pop::<u32>(8), 25u32);
-
-        //manually insert a byte
-        queue.bit_count = 8;
-        queue.inner = 25u128;
-
-        assert_eq!(queue.pop::<usize>(8), 25usize);
+        assert_eq!(0b0001, queue.pop(4));
+        assert_eq!(0b0, queue.pop(1));  
+        assert_eq!(0b00, queue.pop(2));
+        assert_eq!(0b0, queue.pop(1));
+        
     }
 }

@@ -20,3 +20,6 @@ features = ["attributes"]
 
 [dependencies.async-trait]
 version = "0.1.21"
+
+[dependencies.bit_reverse]
+version = "0.1.8"

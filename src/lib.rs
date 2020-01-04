@@ -7,6 +7,8 @@ use bitqueue::BitQueue;
 use byte_reader::{ReadFromBigEndian};
 use error::Result;
 
+use bit_reverse::LookupReverse;
+
 /// BitReader reads data from a byte slice at the granularity of a single bit.
 pub struct BitReader<R : Read + std::marker::Unpin + std::marker::Send> {
     reader : BufReader<R>,
@@ -56,18 +58,13 @@ impl<R : Read + std::marker::Unpin + std::marker::Send> BitReader<R>
         Ok(num)
     }
 
-    pub fn byte_count(&self) -> &usize
+    pub async fn byte_count(&self) -> usize
     {
-        &self.byte_count
+        self.byte_count.clone()
     }
 
-    pub async fn read_be_bits<T>(&mut self, count: usize) -> Result<T> 
-    where T : Sized + std::fmt::Binary +
-              std::ops::Shl<usize, Output=T> + 
-              std::ops::Shr<usize, Output=T> + ,
-          u128: truncate::TruncateTo<T>
+    pub async fn read_be_bits(&mut self, count: usize) -> Result<u8> 
     {
-        println!("Before buffer-len : {}",self.buffer.len());
         if self.buffer.len() < count
         {
             //TODO: expand this to allow for bitstruct types bigger than one byte
@@ -83,18 +80,13 @@ impl<R : Read + std::marker::Unpin + std::marker::Send> BitReader<R>
             self.buffer.push(new_bytes);
         }
 
-        println!("After buffer-len : {}", self.buffer.len());
-
-        Ok(self.buffer.pop::<T>(count))
+        Ok(self.buffer.pop(count))
     }
 
-    pub async fn read_bits<T>(&mut self, count: usize) -> Result<T> 
-    where T : Sized + std::fmt::Binary +
-              std::ops::Shl<usize, Output=T> +
-              std::ops::Shr<usize, Output=T> + std::convert::From<u8>, u8 : std::convert::From<T>,
-          u128: truncate::TruncateTo<T>
+    //TODO: come back and make this generic
+    //If some protocol needs it
+    pub async fn read_le_bits(&mut self, count: usize) -> Result<u8>
     {
-        println!("Before buffer-len : {}",self.buffer.len());
         if self.buffer.len() < count
         {
             //TODO: expand this to allow for bitstruct types bigger than one byte
@@ -110,27 +102,79 @@ impl<R : Read + std::marker::Unpin + std::marker::Send> BitReader<R>
             self.buffer.push(new_bytes);
         }
 
-        println!("After buffer-len : {}", self.buffer.len());
+        let trailing_0s = (std::mem::size_of::<u8>() * 8) - count;
 
-        let result = self.buffer.pop::<T>(count);
+        let result = self.buffer.pop(count).swap_bits() >> trailing_0s;
 
-        let le_bits = reverse(u8::from(result));
+        println!("LE Bits : {:#010b}", result);
 
-        println!("LE BITS : {:#b}", le_bits);
-
-        Ok(T::from(le_bits))
+        Ok(result)
     }
 }
 
-//Taken from here:
-//https://stackoverflow.com/questions/2602823/in-c-c-whats-the-simplest-way-to-reverse-the-order-of-bits-in-a-byte/2603254
-fn reverse(b : u8) -> u8
+#[cfg(test)]
+mod tests
 {
-    // Reverse the top and bottom nibble then swap them.
-    return (lookup[(b&0b1111u8) as usize] << 4) | lookup[(b>>4u8) as usize];
-}
+    use super::*;
+    use async_std::io::BufReader;
+    use async_std::task;
 
-const lookup : [u8;16] = [
-    0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
-    0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf, 
-];
+    #[test]
+    fn read_be() 
+    {
+        task::block_on(async {
+            let bytes = [25u8,25u8,25u8,25u8];
+
+            let underlying_reader : BufReader<&[u8]> = BufReader::new(&bytes);
+
+            let mut reader = BitReader::<BufReader<&[u8]>>::new(underlying_reader);
+
+            let num = reader.read_aligned_be::<u16>().await.unwrap();
+
+            assert_eq!(num, 6425u16);
+
+            let num2 = reader.read_aligned_be::<u8>().await.unwrap();
+
+            assert_eq!(num2, 25u8);
+        });
+    }
+
+    #[test]
+    fn read_test_connect_fixed_header()
+    {
+        task::block_on(async {
+            let bytes = [0b00010000];
+
+            let underlying_reader : BufReader<&[u8]> = BufReader::new(&bytes);
+
+            let mut reader = BitReader::<BufReader<&[u8]>>::new(underlying_reader);
+
+
+            assert_eq!(0b0001, reader.read_be_bits(4).await.unwrap());
+            assert_eq!(0b0, reader.read_be_bits(1).await.unwrap());
+            assert_eq!(0b00, reader.read_be_bits(2).await.unwrap());
+            assert_eq!(0b0, reader.read_be_bits(1).await.unwrap());
+        });
+    }
+
+    #[test]
+    fn read_test_connect_flags()
+    {
+        task::block_on(async {
+            let bytes = [0b11001110];
+
+            let underlying_reader : BufReader<&[u8]> = BufReader::new(&bytes);
+
+            let mut reader = BitReader::<BufReader<&[u8]>>::new(underlying_reader);
+
+
+            assert_eq!(0b1, reader.read_be_bits(1).await.unwrap());
+            assert_eq!(0b1, reader.read_be_bits(1).await.unwrap());
+            assert_eq!(0b0, reader.read_be_bits(1).await.unwrap());
+            assert_eq!(0b01, reader.read_be_bits(2).await.unwrap());
+            assert_eq!(0b1, reader.read_be_bits(1).await.unwrap());
+            assert_eq!(0b1, reader.read_be_bits(1).await.unwrap());
+            assert_eq!(0b0, reader.read_be_bits(1).await.unwrap());
+        });
+    }
+}
