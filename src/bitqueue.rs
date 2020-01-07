@@ -33,7 +33,6 @@ impl BitQueue
         self.inner = byte;
 
         self.bit_count += 8;
-
     }
 
     //TODO: implement a result so we can refill the buffer if we need more bits than are availible
@@ -101,7 +100,6 @@ mod tests
         assert_eq!(0b0001, queue.pop(4));
         assert_eq!(0b0, queue.pop(1));  
         assert_eq!(0b00, queue.pop(2));
-        assert_eq!(0b0, queue.pop(1));
-        
+        assert_eq!(0b0, queue.pop(1));    
     }
 }

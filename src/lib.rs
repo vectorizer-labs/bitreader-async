@@ -1,4 +1,5 @@
-#[macro_use] extern crate failure_derive;
+#[macro_use] 
+extern crate failure;
 
 use async_std::io::{BufReader, Read};
 use async_std::prelude::*;
@@ -58,7 +59,7 @@ impl<R : Read + std::marker::Unpin + std::marker::Send> BitReader<R>
         Ok(num)
     }
 
-    pub async fn byte_count(&self) -> usize
+    pub fn byte_count(&self) -> usize
     {
         self.byte_count.clone()
     }

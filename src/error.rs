@@ -5,7 +5,7 @@ pub type Result<T> = std::result::Result<T, BitReaderError>;
 #[derive(Fail, Debug)]
 pub enum BitReaderError {
     /// Requested more bits than there are left in the byte slice at the current position.
-    #[fail(display = "BitReader: Requested {} bits with only {}-{}/{} bits left (position {})", requested, length, position , length, position)]
+    #[fail(display = "BitReader: Requested {} bits with only ({}-{})/{} bits left (position {})", requested, length, position , length, position)]
     NotEnoughData {
         position: usize,
         length: usize,
@@ -21,17 +21,6 @@ pub enum BitReaderError {
     },
     #[fail(display = "io::Error : {}", _0)]
     Io(#[cause] std::io::Error)
-}
-
-#[cfg(feature = "std")]
-impl Error for BitReaderError {
-    fn description(&self) -> &str {
-        match *self {
-            BitReaderError::NotEnoughData {..} => "Requested more bits than the byte slice has left",
-            BitReaderError::TooManyBitsForType {..} => "Requested more bits than the requested integer type can hold",
-            BitReaderError::IoError(e) => e.description()
-        }
-    }
 }
 
 impl From<std::io::Error> for BitReaderError
