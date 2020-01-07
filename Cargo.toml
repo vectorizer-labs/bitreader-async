@@ -1,6 +1,6 @@
 [package]
 name = "bitreader_async"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Ethan Spurlock <ethan@spurlock.io>"]
 edition = "2018"
 description = "A reader that extends BufReader to allow per bit reads asynchronously"
